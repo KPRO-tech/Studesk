@@ -50,10 +50,14 @@ export function RichTextEditor({
   initialHtml,
   onChange,
   placeholder = 'Commencez à écrire…',
+  sanitizeHtml,
+  sanitizePlainText,
 }: {
   initialHtml: string
   onChange: (html: string) => void
   placeholder?: string
+  sanitizeHtml?: (html: string) => string
+  sanitizePlainText?: (text: string) => string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState<Record<string, boolean>>({})
@@ -98,6 +102,13 @@ export function RichTextEditor({
 
   const emit = () => {
     if (!ref.current) return
+    if (sanitizeHtml) {
+      const sanitized = sanitizeHtml(ref.current.innerHTML)
+      if (sanitized !== ref.current.innerHTML) {
+        ref.current.innerHTML = sanitized
+        placeCaretAtEnd(ref.current)
+      }
+    }
     setEmpty(!ref.current.textContent?.trim() && !ref.current.querySelector('img,hr'))
     onChange(ref.current.innerHTML)
   }
@@ -204,6 +215,13 @@ export function RichTextEditor({
           aria-multiline="true"
           aria-label="Contenu de la note"
           onInput={emit}
+          onPaste={(event) => {
+            if (!sanitizePlainText) return
+            event.preventDefault()
+            const text = event.clipboardData.getData('text/plain')
+            document.execCommand('insertText', false, sanitizePlainText(text))
+            emit()
+          }}
           onKeyUp={refreshState}
           onMouseUp={refreshState}
           onBlur={emit}
@@ -212,6 +230,15 @@ export function RichTextEditor({
       </div>
     </div>
   )
+}
+
+function placeCaretAtEnd(element: HTMLElement) {
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  range.collapse(false)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
 }
 
 function ToolbarButton({

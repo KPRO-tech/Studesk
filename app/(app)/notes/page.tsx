@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import { db, uid, type Note, type Subject } from '@/lib/db'
 import { useApp } from '@/components/providers'
-import { AudioRecorder } from '@/components/notes/audio-recorder'
 import { RichTextEditor } from '@/components/notes/rich-text-editor'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,8 +34,22 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { toEditorHtml, htmlToText } from '@/lib/richtext'
-import { exportNotePdf } from '@/lib/pdf'
+import {
+  exportNotePdf,
+  isUnsupportedPdfContentError,
+  sanitizePdfHtml,
+  sanitizePdfPlainText,
+  type PdfUnsupportedCharacter,
+} from '@/lib/pdf'
 import { formatRelativeDay } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -327,6 +340,9 @@ function NoteEditor({
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
   const [saved, setSaved] = useState(true)
+  const [unsupportedPdfChars, setUnsupportedPdfChars] = useState<
+    PdfUnsupportedCharacter[]
+  >([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Autosave with 400ms debounce
@@ -362,6 +378,7 @@ function NoteEditor({
 
   const exportPdf = async () => {
     setExporting(true)
+    setUnsupportedPdfChars([])
     try {
       await exportNotePdf({
         title,
@@ -370,6 +387,10 @@ function NoteEditor({
       })
     } catch (err) {
       console.log('[v0] PDF export failed:', err)
+      if (isUnsupportedPdfContentError(err)) {
+        setUnsupportedPdfChars(err.issues)
+        return
+      }
       toast.error("L'export PDF a échoué.")
     } finally {
       setExporting(false)
@@ -427,20 +448,80 @@ function NoteEditor({
       <div className="flex min-h-0 flex-1 flex-col px-4 pt-4">
         <input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => setTitle(sanitizePdfPlainText(e.target.value))}
           placeholder="Titre"
           className="w-full shrink-0 bg-transparent font-heading text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50"
         />
         <div className="mt-2 flex min-h-0 flex-1 flex-col">
           <RichTextEditor
             initialHtml={toEditorHtml(note.content)}
-            onChange={setContent}
+            onChange={(nextHtml) => setContent(sanitizePdfHtml(nextHtml))}
+            sanitizeHtml={sanitizePdfHtml}
+            sanitizePlainText={sanitizePdfPlainText}
           />
         </div>
-        <div className="shrink-0 border-t border-border py-3">
-          <AudioRecorder noteId={note.id} userId={userId} />
-        </div>
       </div>
+      <UnsupportedPdfDialog
+        issues={unsupportedPdfChars}
+        onOpenChange={(open) => {
+          if (!open) setUnsupportedPdfChars([])
+        }}
+      />
     </div>
+  )
+}
+
+function UnsupportedPdfDialog({
+  issues,
+  onOpenChange,
+}: {
+  issues: PdfUnsupportedCharacter[]
+  onOpenChange: (open: boolean) => void
+}) {
+  const hasEmoji = issues.some((issue) => issue.reason === 'emoji')
+  const hasControl = issues.some((issue) => issue.reason === 'control')
+  const hasUnsupported = issues.some((issue) => issue.reason === 'unsupported')
+
+  return (
+    <Dialog open={issues.length > 0} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Export PDF impossible</DialogTitle>
+          <DialogDescription>
+            Certains caractères de cette note ne sont pas compatibles avec
+            l'export PDF texte. Supprimez-les avant de télécharger le fichier.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            {hasEmoji && <li>Emojis ou pictogrammes.</li>}
+            {hasControl && <li>Caractères invisibles ou de contrôle.</li>}
+            {hasUnsupported && <li>Symboles non pris en charge par le PDF.</li>}
+          </ul>
+
+          <div className="rounded-lg border border-border bg-muted/40 p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              Caractères détectés
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {issues.map((issue) => (
+                <span
+                  key={issue.codePoint}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                >
+                  {issue.reason === 'control' ? 'invisible' : issue.char}{' '}
+                  <span className="text-muted-foreground">{issue.codePoint}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Compris</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
