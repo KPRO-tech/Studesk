@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, Clock, Coins } from 'lucide-react'
+import { GraduationCap, Clock, Coins, AtSign } from 'lucide-react'
 import { signUp } from '@/lib/auth'
 import { useApp } from '@/components/providers'
 import { COUNTRIES, getCountry } from '@/lib/countries'
@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/select'
 import { Eye, EyeOff } from "lucide-react"
 import { toast } from 'sonner'
+import type { User } from '@/lib/db'
+import { SlugEditor } from '@/components/settings/slug-editor'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -33,6 +35,9 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  //pour le slug
+  const [created, setCreated] = useState<User | null>(null)
+
   const set = (k: keyof typeof form, v: string) =>
     setForm((p) => ({ ...p, [k]: v }))
 
@@ -44,13 +49,24 @@ export default function SignupPage() {
     }
     setLoading(true)
     try {
-      await signUp(form)
-      refreshSession()
-      router.replace('/')
+      //pour le slug
+      const user = await signUp(form)
+      setCreated(user)
+
+      // Ne PAS rediriger ici — on attend la SlugStep
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Inscription impossible.')
       setLoading(false)
     }
+  }
+
+  const finish = () => {
+    refreshSession()
+    router.replace('/')
+  }
+
+  if (created) {
+    return <SlugStep user={created} onDone={finish} />
   }
 
   return (
@@ -160,6 +176,42 @@ export default function SignupPage() {
     </div>
   )
 }
+
+function SlugStep({ user, onDone }: { user: User; onDone: () => void }) {
+  return (
+    <div>
+      <div className="mb-8 flex flex-col items-center text-center">
+        <div className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+          <AtSign className="size-6" />
+        </div>
+        <h1 className="font-heading text-2xl font-semibold text-balance">
+          Choisissez votre identifiant public
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">
+          Il apparaîtra sur les ressources que vous partagez. Vous pourrez le modifier plus
+          tard dans les paramètres.
+        </p>
+      </div>
+
+      <SlugEditor
+        userId={user.id}
+        currentSlug={user.slug}
+        autoFocus
+        saveLabel="Continuer"
+        onSaved={onDone}
+      />
+
+      <button
+        type="button"
+        onClick={onDone}
+        className="mt-6 w-full text-center text-sm text-muted-foreground hover:text-foreground"
+      >
+        Passer pour l&apos;instant
+      </button>
+    </div>
+  )
+}
+
 
 function CountryPreview({ code }: { code: string }) {
   const country = getCountry(code)

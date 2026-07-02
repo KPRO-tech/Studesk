@@ -4,9 +4,9 @@ export type ProfileType = 'student' | 'personal' | 'business'
 export type SyncState = 'synced' | 'pending'
 export type GoalKind = 'spending' | 'saving'
 export type ReviewResult = 'again' | 'hard' | 'good' | 'easy'
-export type QuizMode = 'practice' | 'timed'
+export type QuizMode = 'practice' | 'timed' | 'exam'
 export type CategoryKind = 'task' | 'income' | 'expense' | 'event'
-export type EventType = 'school' | 'personal' | 'business'
+export type EventType = 'school' | 'personal'
 
 export interface DeletedSync {
     id: string
@@ -22,8 +22,19 @@ export interface User {
     passwordHash: string
     firebaseUid?: string
     country: string
+    slug?: string
+    description?: string
     createdAt: number
     sync?: SyncState
+}
+
+/** Public visibility of a shareable resource. Undefined is treated as 'private'. */
+export type Visibility = 'public' | 'private'
+
+/** Marker left on a resource that was imported from the community library. */
+export interface ImportedFrom {
+    authorSlug: string
+    authorName: string
 }
 
 export interface AppSettings {
@@ -52,6 +63,8 @@ export interface Note {
     content: string
     subjectId?: string
     pinned: boolean
+    visibility?: Visibility
+    importedFrom?: ImportedFrom
     createdAt: number
     updatedAt: number
     sync?: SyncState
@@ -64,6 +77,8 @@ export interface Deck {
     name: string
     description?: string
     subjectId?: string
+    visibility?: Visibility
+    importedFrom?: ImportedFrom
     createdAt: number
     updatedAt: number
     sync?: SyncState
@@ -146,6 +161,8 @@ export interface Quiz {
     subjectId?: string
     questions: QuizQuestion[]
     timeLimit?: number
+    visibility?: Visibility
+    importedFrom?: ImportedFrom
     createdAt: number
     updatedAt: number
     sync?: SyncState
@@ -265,6 +282,81 @@ export interface AudioRecording {
     sync?: SyncState
 }
 
+/* ------------------------------------------------------------------ */
+/* Study groups (local simulation)                                     */
+/* ------------------------------------------------------------------ */
+
+export interface Group {
+    id: string
+    /** local owner (the current user) */
+    userId: string
+    name: string
+    description: string
+    /** lucide icon name, editable in the group settings */
+    icon: string
+    /** short code used for the invite link, e.g. "4XJ82A" */
+    joinCode: string
+    /** "Par lien" (true) vs "Privé" (false) */
+    linkEnabled: boolean
+    createdAt: number
+    updatedAt: number
+}
+
+export type GroupRole = 'admin' | 'member'
+
+export interface GroupMember {
+    id: string
+    groupId: string
+    /** '@me' for the current user, otherwise a simulated author slug */
+    slug: string
+    name: string
+    avatarIcon: string
+    accent: string
+    role: GroupRole
+    isSelf: boolean
+    joinedAt: number
+}
+
+/** Snapshot of a shared resource, embedded in a message so it survives even if
+ *  the original resource is private or deleted. */
+export interface GroupAttachment {
+    kind: 'note' | 'deck' | 'quiz'
+    title: string
+    subject: string
+    note?: { html: string }
+    deck?: { description: string; cards: { front: string; back: string }[] }
+    quiz?: { questions: { question: string; options: string[]; correct: number[] }[] }
+}
+
+export interface GroupMessage {
+    id: string
+    groupId: string
+    /** '@me' or a simulated author slug */
+    authorSlug: string
+    text: string
+    attachment?: GroupAttachment
+    createdAt: number
+}
+
+export type InviteDirection = 'incoming' | 'outgoing'
+export type InviteStatus = 'pending' | 'accepted' | 'declined'
+
+export interface GroupInvite {
+    id: string
+    userId: string
+    direction: InviteDirection
+    /** set for outgoing invites (an existing local group) */
+    groupId?: string
+    fromSlug: string
+    fromName: string
+    /** for incoming simulated invites: snapshot of the group to join */
+    groupName: string
+    groupDescription: string
+    memberCount: number
+    status: InviteStatus
+    createdAt: number
+}
+
 class DeskiaDB extends Dexie {
     users!: EntityTable<User, 'id'>
     settings!: EntityTable<AppSettings, 'id'>
@@ -285,6 +377,10 @@ class DeskiaDB extends Dexie {
     routines!: EntityTable<RoutineEvent, 'id'>
     events!: EntityTable<CalendarEvent, 'id'>
     deletedSyncs!: EntityTable<DeletedSync, 'id'>
+    groups!: EntityTable<Group, 'id'>
+    groupMembers!: EntityTable<GroupMember, 'id'>
+    groupMessages!: EntityTable<GroupMessage, 'id'>
+    groupInvites!: EntityTable<GroupInvite, 'id'>
 
     constructor() {
         super('deskia')
@@ -313,12 +409,19 @@ class DeskiaDB extends Dexie {
             routines: 'id, userId, day',
         })
         this.version(5).stores({
-            users: 'id, email, firebaseUid',
+            users: 'id, email, firebaseUid, slug',
+            notes: 'id, userId, updatedAt, subjectId, pinned, visibility',
+            decks: 'id, userId, updatedAt, visibility',
+            quizzes: 'id, userId, updatedAt, subjectId, visibility',
             transactions: 'id, userId, date, category',
             goals: 'id, userId',
         })
         this.version(6).stores({
             deletedSyncs: 'id, collection',
+            groups: 'id, userId, joinCode',
+            groupMembers: 'id, groupId, slug',
+            groupMessages: 'id, groupId, createdAt',
+            groupInvites: 'id, userId, status',
         })
         this.version(7).stores({
             // Add userId index to reviews (was missing from v1)
@@ -353,7 +456,7 @@ class DeskiaDB extends Dexie {
                             id: primKey as string,
                             collection: table.name,
                             deletedAt: Date.now(),
-                        }).catch(() => {/* ignore */})
+                        }).catch(() => {/* ignore */ })
                     })
                 }
             })

@@ -14,10 +14,12 @@ import {
   Sparkles,
   Loader2,
 } from 'lucide-react'
-import { db, uid, type Deck, type Card as FlashCard, type ReviewResult } from '@/lib/db'
+import { db, uid, type Deck, type Card as FlashCard, type ReviewResult, type Visibility } from '@/lib/db'
 import { useApp } from '@/components/providers'
 import { newCardScheduling, RESULT_LABELS } from '@/lib/sm2'
 import { ReviewSession } from '@/components/flashcards/review-session'
+import { VisibilityToggle } from '@/components/community/visibility-toggle'
+import { ImportedBadge } from '@/components/community/imported-badge'
 import { PageHeader } from '@/components/page-header'
 import { SubjectPicker } from '@/components/subject-picker'
 import { Button } from '@/components/ui/button'
@@ -160,6 +162,7 @@ function DeckList({
                           {deck.aiGenerated && (
                             <Sparkles className="size-3 text-primary shrink-0" aria-label="Généré par l'IA" />
                           )}
+                          <ImportedBadge importedFrom={deck.importedFrom} />
                         </div>
                         {deck.subjectId && subjects && (
                           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -257,6 +260,7 @@ function DeckDialog({
   const [name, setName] = useState(deck?.name ?? '')
   const [description, setDescription] = useState(deck?.description ?? '')
   const [subjectId, setSubjectId] = useState<string | undefined>(deck?.subjectId)
+  const [visibility, setVisibility] = useState<Visibility>(deck?.visibility ?? 'private')
 
   const save = async () => {
     if (!name.trim()) {
@@ -265,13 +269,14 @@ function DeckDialog({
     }
     const now = Date.now()
     if (deck) {
-      await db.decks.update(deck.id, { name: name.trim(), description, subjectId: subjectId || undefined, updatedAt: now })
+      await db.decks.update(deck.id, { name: name.trim(), description, subjectId: subjectId || undefined, updatedAt: now, visibility })
     } else {
       await db.decks.add({
         id: uid(),
         userId,
         name: name.trim(),
         description,
+        visibility,
         subjectId: subjectId || undefined,
         createdAt: now,
         updatedAt: now,
@@ -325,6 +330,15 @@ function DeckDialog({
               placeholder="Optionnel"
               className="resize-none"
             />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col">
+              <Label>Visibilité</Label>
+              <span className="text-xs text-muted-foreground">
+                Rendez ce paquet public pour le partager.
+              </span>
+            </div>
+            <VisibilityToggle value={visibility} onChange={setVisibility} />
           </div>
         </div>
         <DialogFooter className="flex-row justify-between sm:justify-between">
@@ -403,6 +417,12 @@ function DeckView({
             <p className="truncate text-sm text-muted-foreground">{deck.description}</p>
           )}
         </div>
+        {deck && (
+          <VisibilityToggle
+            value={deck.visibility}
+            onChange={(v) => db.decks.update(deck.id, { visibility: v, updatedAt: Date.now() })}
+          />
+        )}
         <Button
           variant="outline"
           className="gap-2"

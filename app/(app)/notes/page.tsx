@@ -20,6 +20,8 @@ import {
 import { db, uid, type Note, type Subject } from '@/lib/db'
 import { useApp } from '@/components/providers'
 import { RichTextEditor } from '@/components/notes/rich-text-editor'
+import { VisibilityToggle } from '@/components/community/visibility-toggle'
+import { ImportedBadge } from '@/components/community/imported-badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -162,7 +164,9 @@ export default function NotesPage() {
                 {filtered.length} note{filtered.length > 1 ? 's' : ''}
               </span>
               <DropdownMenu>
-                <DropdownMenuTrigger className={buttonVariants({ variant: 'ghost', size: 'sm', className: 'h-7 gap-1.5 px-2 text-xs' })}>
+                <DropdownMenuTrigger
+                  render={<Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" />}
+                >
                   <ArrowDownUp className="size-3.5" />
                   {SORT_LABEL[sort]}
                 </DropdownMenuTrigger>
@@ -230,6 +234,7 @@ export default function NotesPage() {
                           {n.aiGenerated && (
                             <Sparkles className="size-3 text-primary shrink-0" aria-label="Généré par l'IA" />
                           )}
+                          <ImportedBadge importedFrom={n.importedFrom} />
                         </div>
                         <span className="truncate text-xs text-muted-foreground">
                           {preview.slice(0, 70) || 'Aucun contenu'}
@@ -421,6 +426,12 @@ function NoteEditor({
         <span className="flex-1 text-right text-xs text-muted-foreground">
           {saved ? 'Enregistré' : 'Enregistrement…'}
         </span>
+        <VisibilityToggle
+          value={note.visibility}
+          onChange={(v) =>
+            db.notes.update(note.id, { visibility: v, updatedAt: Date.now(), sync: 'pending' })
+          }
+        />
         <Button size="icon" variant="ghost" className="size-8" onClick={togglePin} aria-label="Épingler">
           {note.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
         </Button>

@@ -274,21 +274,23 @@ function SubjectPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="outline" className="h-10 gap-1.5 sm:w-44 sm:justify-start" />}>
-          {current ? (
-            <>
-              <span
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: current.color }}
-              />
-              <span className="truncate">{current.name}</span>
-            </>
-          ) : (
-            <>
-              <TagIcon className="size-3.5" />
-              Aucune
-            </>
-          )}
+      <PopoverTrigger
+        render={<Button variant="outline" className="h-10 gap-1.5 sm:w-44 sm:justify-start" />}
+      >
+        {current ? (
+          <>
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: current.color }}
+            />
+            <span className="truncate">{current.name}</span>
+          </>
+        ) : (
+          <>
+            <TagIcon className="size-3.5" />
+            Aucune
+          </>
+        )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-2">
         <Input

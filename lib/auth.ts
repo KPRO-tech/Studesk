@@ -8,7 +8,21 @@ import {
   verifyBeforeUpdateEmail as firebaseVerifyBeforeUpdateEmail
 } from 'firebase/auth'
 
-const SESSION_KEY = 'deskia.session'
+import { defaultSlug, isSlugAvailable } from './slug'
+
+const SESSION_KEY = 'studesk.session'
+
+/** Generate a unique public handle derived from the user's name. */
+async function generateUniqueSlug(firstName: string, lastName: string): Promise<string> {
+  const base = defaultSlug(firstName, lastName)
+  let candidate = base
+  let i = 1
+  // Guard against reserved words, simulated authors, and existing accounts.
+  while (!(await isSlugAvailable(candidate))) {
+    candidate = `${base}-${i++}`
+  }
+  return candidate
+}
 
 /**
  * Lightweight local auth for Phase 1 (offline-first).
@@ -17,7 +31,7 @@ const SESSION_KEY = 'deskia.session'
  */
 
 async function hash(password: string): Promise<string> {
-  const data = new TextEncoder().encode(`deskia:${password}`)
+  const data = new TextEncoder().encode(`studesk:${password}`)
   const digest = await crypto.subtle.digest('SHA-256', data)
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -50,13 +64,17 @@ export async function signUp(input: SignUpInput): Promise<User> {
   const existing = await db.users.where('email').equals(email).first()
   if (existing) throw new Error('Un compte existe déjà avec cet email.')
 
+  const firstName = input.firstName.trim()
+  const lastName = input.lastName.trim()
+
   const user: User = {
     id: uid(),
-    firstName: input.firstName.trim(),
-    lastName: input.lastName.trim(),
+    firstName,
+    lastName,
     email,
     passwordHash: await hash(input.password),
     country: input.country,
+    slug: await generateUniqueSlug(firstName, lastName),
     createdAt: Date.now(),
     sync: 'pending',
   }
@@ -99,10 +117,10 @@ export async function signIn(email: string, password: string): Promise<User> {
               console.error('Firebase auto-create failed:', createErr)
             }
           } else {
-             throw new Error('Mot de passe incorrect.')
+            throw new Error('Mot de passe incorrect.')
           }
         } else {
-           throw new Error('Aucun compte trouvé avec cet email.')
+          throw new Error('Aucun compte trouvé avec cet email.')
         }
       } else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
         throw new Error('Email ou mot de passe incorrect.')
@@ -115,7 +133,7 @@ export async function signIn(email: string, password: string): Promise<User> {
 
   if (!user) {
     if (!fbUid) throw new Error('Aucun compte local trouvé et connexion Firebase impossible.')
-    
+
     // We are on a new device, we need to create the local user!
     let id = uid()
     let firstName = 'Utilisateur'
@@ -124,20 +142,20 @@ export async function signIn(email: string, password: string): Promise<User> {
     let createdAt = Date.now()
 
     try {
-       const { getFirestore, doc, getDoc } = await import('firebase/firestore')
-       const { getApp } = await import('firebase/app')
-       const firestore = getFirestore(getApp())
-       const userDoc = await getDoc(doc(firestore, `users/${fbUid}`))
-       if (userDoc.exists()) {
-          const data = userDoc.data()
-          if (data.id) id = data.id
-          if (data.firstName) firstName = data.firstName
-          if (data.lastName) lastName = data.lastName
-          if (data.country) country = data.country
-          if (data.createdAt) createdAt = data.createdAt
-       }
+      const { getFirestore, doc, getDoc } = await import('firebase/firestore')
+      const { getApp } = await import('firebase/app')
+      const firestore = getFirestore(getApp())
+      const userDoc = await getDoc(doc(firestore, `users/${fbUid}`))
+      if (userDoc.exists()) {
+        const data = userDoc.data()
+        if (data.id) id = data.id
+        if (data.firstName) firstName = data.firstName
+        if (data.lastName) lastName = data.lastName
+        if (data.country) country = data.country
+        if (data.createdAt) createdAt = data.createdAt
+      }
     } catch (e) {
-       console.error("Failed to fetch user profile from Firestore", e)
+      console.error("Failed to fetch user profile from Firestore", e)
     }
 
     user = {
@@ -157,7 +175,7 @@ export async function signIn(email: string, password: string): Promise<User> {
     const ph = await hash(password)
     // Only verify local password if we didn't just authenticate successfully with Firebase
     if (!fbUid && ph !== user.passwordHash) throw new Error('Mot de passe incorrect.')
-    
+
     // If Firebase succeeded and local hash differs, update it (e.g. after password reset)
     if (fbUid && ph !== user.passwordHash) {
       await db.users.update(user.id, { passwordHash: ph })
@@ -177,7 +195,7 @@ export async function updatePassword(userId: string, current: string, next: stri
   const user = await db.users.get(userId)
   if (!user) throw new Error('Utilisateur introuvable.')
   if ((await hash(current)) !== user.passwordHash) throw new Error('Mot de passe actuel incorrect.')
-  
+
   if (typeof window !== 'undefined' && navigator.onLine && firebaseAuth && firebaseAuth.currentUser) {
     try {
       await firebaseUpdatePassword(firebaseAuth.currentUser, next)
@@ -188,7 +206,7 @@ export async function updatePassword(userId: string, current: string, next: stri
       throw e
     }
   }
-  
+
   await db.users.update(userId, { passwordHash: await hash(next) })
 }
 

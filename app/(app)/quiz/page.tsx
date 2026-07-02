@@ -18,6 +18,8 @@ import { db, type Quiz, type QuizMode } from '@/lib/db'
 import { useApp } from '@/components/providers'
 import { QuizBuilder } from '@/components/quiz/quiz-builder'
 import { QuizPlayer } from '@/components/quiz/quiz-player'
+import { VisibilityToggle } from '@/components/community/visibility-toggle'
+import { ImportedBadge } from '@/components/community/imported-badge'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -162,6 +164,7 @@ function QuizList({
                         {quiz.aiGenerated && (
                           <Sparkles className="size-3 text-primary shrink-0" aria-label="Généré par l'IA" />
                         )}
+                        <ImportedBadge importedFrom={quiz.importedFrom} />
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {quiz.questions.length} question{quiz.questions.length > 1 ? 's' : ''} ·{' '}
@@ -191,6 +194,13 @@ function QuizList({
                     <Button size="sm" className="flex-1 gap-2" onClick={() => onPlay(quiz)}>
                       <Play className="size-4" /> Démarrer
                     </Button>
+                    <VisibilityToggle
+                      size="icon"
+                      value={quiz.visibility}
+                      onChange={(v) =>
+                        db.quizzes.update(quiz.id, { visibility: v, updatedAt: Date.now() })
+                      }
+                    />
                     <Button
                       size="icon"
                       variant="ghost"

@@ -12,6 +12,8 @@ import {
   Wallet,
   Sparkles,
   Settings,
+  Compass,
+  Users
 } from 'lucide-react'
 import { useApp } from '@/components/providers'
 import { getAvatarIcon, DEFAULT_AVATAR_ICON } from '@/lib/avatar-icons'
@@ -22,7 +24,7 @@ const NAV_GROUPS = [
     label: 'Étudier',
     items: [
       { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
-      { href: '/notes', label: 'Fiches & cours', icon: BookOpen },
+      { href: '/notes', label: 'Fiches & Cours', icon: BookOpen },
       { href: '/flashcards', label: 'Flashcards', icon: Layers },
       { href: '/quiz', label: 'Quiz', icon: ListChecks },
     ],
@@ -30,11 +32,20 @@ const NAV_GROUPS = [
   {
     label: 'Organiser',
     items: [
-      { href: '/calendar', label: 'Emploi du temps', icon: CalendarDays },
-      { href: '/tasks', label: 'Devoirs & to-do', icon: ClipboardList },
-      { href: '/budget', label: 'Budget', icon: Wallet },
+      { href: '/calendar', label: 'Planning', icon: CalendarDays },
+      { href: '/tasks', label: 'To-Do', icon: ClipboardList },
+      { href: '/budget', label: 'Portefeuille', icon: Wallet },
     ],
   },
+
+  {
+    label: 'Studesk Hub',
+    items: [
+      { href: '/communaute', label: 'Communauté', icon: Compass },
+      { href: '/groupes', label: 'Workspace', icon: Users },
+    ],
+  },
+
 ] as const
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -102,7 +113,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Footer */}
       <div className="flex flex-col gap-0.5 border-t border-sidebar-border px-3 py-3">
-        <FooterLink href="/ai" label="Assistant IA" icon={Sparkles} pathname={pathname} onNavigate={onNavigate} />
+        <FooterLink href="/ai" label="Skarlet" icon={Sparkles} pathname={pathname} onNavigate={onNavigate} />
         <FooterLink href="/settings" label="Paramètres" icon={Settings} pathname={pathname} onNavigate={onNavigate} />
       </div>
     </div>

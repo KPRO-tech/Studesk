@@ -94,6 +94,21 @@ export function minToTime(min: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 }
 
+/** Compact "time ago" label: "à l'instant", "il y a 5 min", "il y a 2 h", "hier", then a date. */
+export function formatRelativeTime(ts: number, locale = 'fr-FR'): string {
+  const diff = Date.now() - ts
+  const min = Math.floor(diff / 60_000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  const hours = Math.floor(min / 60)
+  if (hours < 24) return `il y a ${hours} h`
+  const days = Math.round((startOfDay(Date.now()) - startOfDay(ts)) / DAY)
+  if (days === 1) return 'hier'
+  if (days < 7) return `il y a ${days} j`
+  return formatDate(ts, locale)
+}
+
+
 export function formatRelativeDay(ts: number, locale = 'fr-FR'): string {
   const diff = startOfDay(ts) - startOfDay(Date.now())
   const days = Math.round(diff / DAY)

@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -46,6 +47,9 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
+import { ExternalLink } from 'lucide-react'
+import { SlugEditor, PUBLIC_PROFILE_BASE } from '@/components/settings/slug-editor'
 
 const THEMES = [
   { key: 'light', label: 'Clair', icon: Sun },
@@ -387,10 +391,12 @@ function Field({
 /* -------------------------------------------------------------------------- */
 
 function ProfileSection() {
-  const { settings } = useApp()
+  const { userId, user, settings } = useApp()
   const [workspaceName, setWorkspaceName] = useState(settings?.workspaceName ?? '')
+  const [description, setDescription] = useState(user?.description ?? '')
+  const [savingDesc, setSavingDesc] = useState(false)
 
-  if (!settings) return null
+  if (!settings || !userId || !user) return null
 
   const workspaceDirty = workspaceName !== (settings.workspaceName ?? '')
 
@@ -402,10 +408,66 @@ function ProfileSection() {
     toast.success('Nom de l\u2019espace mis à jour.')
   }
 
+  const saveDescription = async () => {
+    setSavingDesc(true)
+    try {
+      await db.users.update(userId, { description: description.trim() })
+      toast.success('Description mise à jour.')
+    } catch (e) {
+      toast.error('Erreur lors de la sauvegarde.')
+    } finally {
+      setSavingDesc(false)
+    }
+  }
+
   const ActiveAvatar = getAvatarIcon(settings.avatarIcon ?? DEFAULT_AVATAR_ICON)
 
   return (
     <div className="flex flex-col gap-6">
+
+      <SectionShell
+        title="Profil public"
+        description="Votre identifiant public permet de partager vos ressources publiées."
+      >
+        <Card className="flex flex-col gap-4 p-5">
+          <SlugEditor userId={userId} currentSlug={user?.slug} />
+          {user?.slug ? (
+            <Link
+              href={`/u/${user.slug}`}
+              target="_blank"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              <ExternalLink className="size-4" />
+              Voir mon profil public
+            </Link>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Choisissez un identifiant pour activer votre page&nbsp;
+              <span className="font-medium text-foreground">{PUBLIC_PROFILE_BASE}…</span>
+            </p>
+          )}
+
+          <div className="mt-2 flex flex-col gap-3">
+            <Label htmlFor="description">Bio / Description</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Étudiant en droit, j'aime partager mes fiches..."
+              className="min-h-[100px]"
+            />
+            <Button 
+              onClick={saveDescription} 
+              disabled={savingDesc || description === (user?.description ?? '')}
+              className="w-fit"
+            >
+              {savingDesc ? 'Enregistrement...' : 'Enregistrer la description'}
+            </Button>
+          </div>
+        </Card>
+      </SectionShell>
+
+
       <SectionShell title="Espace de travail" description="Le nom affiché dans la barre latérale.">
         <Card className="flex flex-col gap-4 p-5">
           <div className="flex items-center gap-3">
